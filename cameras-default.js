@@ -115,8 +115,35 @@ const deviceMapper = {
             cameraLeft,
             cameraRight,
         ],
-        buttonDown: "ptzstop",
-    }
+        buttonDown: [
+            "ptzstop",
+            "zoomstop"
+        ],
+    },
+    "DPAD_HORIZ": {
+        url: [
+            cameraLeft,
+            cameraRight,
+        ],
+        positive: "lock_mfocus",
+        negative: "unlock_mfocus",
+        maxPanSpeed: 1, // Also used for Zoom/Focus speed
+        maxTiltSpeed: 0,
+        zero: "",
+        isMoving: false,
+    },
+    "DPAD_VERT": {
+        url: [
+            cameraLeft,
+            cameraRight,
+        ],
+        positive: "focusout",
+        negative: "focusin",
+        maxPanSpeed: 2, // Also used for Zoom/Focus speed
+        maxTiltSpeed: 0,
+        zero: "focusstop",
+        isMoving: false,
+    },
 };
 
 module.exports = { username, password, deviceMapper };

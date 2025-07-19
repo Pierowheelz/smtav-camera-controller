@@ -129,9 +129,6 @@ const gotButtonDown = ( button ) => {
         return;
     }
     const action = device.buttonDown ?? null;
-    if( null === action ){
-        return;
-    }
     const speed = device.buttonSpeed ?? null;
     sendPTZCommand( device.url, action, speed );
 };
@@ -142,9 +139,6 @@ const gotButtonUp = ( button ) => {
         return;
     }
     const action = device.buttonUp ?? null;
-    if( null === action ){
-        return;
-    }
     const speed = device.buttonSpeed ?? null;
     sendPTZCommand( device.url, action, speed );
 };
@@ -156,19 +150,30 @@ const sendPTZCommand = ( deviceUrl, action, panSpeed, tiltSpeed ) => {
     } else {
         urls = deviceUrl;
     }
-    if( "" === action ){
-        return;
+    let actions = [];
+    if( !Array.isArray(action) ){
+        actions.push(action);
+    } else {
+        actions = action;
     }
     urls.forEach( indDeviceUrl => {
-        let url = indDeviceUrl + "?ptzcmd&" + action;
-        if( typeof panSpeed !== "undefined" && null !== panSpeed && 0 !== panSpeed ){
-            url += "&" + panSpeed;
+        if ( null === indDeviceUrl || "" === indDeviceUrl ){
+            return; // Skip empty URLs
         }
-        if( typeof tiltSpeed !== "undefined" && null !== tiltSpeed && 0 !== tiltSpeed  ){
-            url += "&" + tiltSpeed;
-        }
+        actions.forEach( indAction => {
+            if ( null === indAction || "" === indAction ){
+                return; // Skip empty actions
+            }
+            let url = indDeviceUrl + "?ptzcmd&" + indAction;
+            if( typeof panSpeed !== "undefined" && null !== panSpeed && 0 !== panSpeed ){
+                url += "&" + panSpeed;
+            }
+            if( typeof tiltSpeed !== "undefined" && null !== tiltSpeed && 0 !== tiltSpeed  ){
+                url += "&" + tiltSpeed;
+            }
 
-        pushToDevice( url );
+            pushToDevice( url );
+        } );
     } );
 };
 

@@ -26,6 +26,12 @@ const buttons = {
     "22": "22",
     "23": "23",
     "24": "24",
+    "25": "25",
+    "26": "26",
+    "27": "27",
+    "28": "28",
+    "29": "29",
+    "30": "30",
 };
 
 // Define your Axes. The value must match the key in your deviceMapper variable in controller.js
@@ -40,6 +46,9 @@ const axes = [
     "AXIS_7",
     "AXIS_8",
     "AXIS_9",
+    "AXIS_10",
+    "AXIS_11",
+    "AXIS_12",
 ];
 
 // Deadzone of the controller as a percentage of the total axis travel (0 = 0%, 0.5 = 50%, 1 = 100%)
