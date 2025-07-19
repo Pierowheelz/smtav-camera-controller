@@ -1,6 +1,6 @@
 {
   "name": "ip-camera-controller",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Allows controlling the IP cameras using a standard game controller.",
   "license": "ISC",
   "author": "Peter Wells",

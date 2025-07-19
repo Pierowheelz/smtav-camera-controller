@@ -1,108 +1,37 @@
 const http = require('http');
 const GameController = require('./src/GameController');
 
-const username = "admin";
-const password = "admin";
-const cameraLeft = "http://192.168.1.109/cgi-bin/ptzctrl.cgi";
-const cameraRight = "http://192.168.1.110/cgi-bin/ptzctrl.cgi";
-const ptzPan = {
-    negative: "left",
-    positive: "right",
-    maxPanSpeed: 24,
-    maxTiltSpeed: 0,
-    zero: "ptzstop",
-    isMoving: false,
-    negativeShared: {
-        negative: "leftup",
-        positive: "leftdown"
-    },
-    positiveShared: {
-        negative: "rightup",
-        positive: "rightdown"
-    },
-};
-const ptzTilt = {
-    negative: "up",
-    positive: "down",
-    maxPanSpeed: 0,
-    maxTiltSpeed: 20,
-    zero: "ptzstop",
-    negativeShared: {
-        negative: "leftup",
-        positive: "rightup"
-    },
-    positiveShared: {
-        negative: "leftdown",
-        positive: "rightdown"
-    },
-};
-const deviceMapper = {
-    "STICK_L_HORIZ": {
-        url: cameraLeft,
-        shared: "STICK_L_VERT",
-        ...ptzPan,
-        isMoving: false,
-    },
-    "STICK_L_VERT": {
-        url: cameraLeft,
-        shared: "STICK_L_HORIZ",
-        ...ptzTilt,
-        isMoving: false,
-    },
-    "TRIGGER_L": {
-        url: cameraLeft,
-        positive: "zoomin",
-        negative: "",
-        maxPanSpeed: 7,
-        maxTiltSpeed: 0,
-        zero: "zoomstop",
-        isMoving: false,
-    },
-    "BUMPER_LEFT": {
-        url: cameraLeft,
-        buttonDown: "zoomout",
-        buttonUp: "zoomstop",
-        buttonSpeed: 4,
-    },
-    "STICK_R_HORIZ": {
-        url: cameraRight,
-        shared: "STICK_R_VERT",
-        ...ptzPan,
-        isMoving: false,
-    },
-    "STICK_R_VERT": {
-        url: cameraRight,
-        shared: "STICK_R_HORIZ",
-        ...ptzTilt,
-        isMoving: false,
-    },
-    "TRIGGER_R": {
-        url: cameraRight,
-        positive: "zoomin",
-        negative: "",
-        maxPanSpeed: 7,
-        maxTiltSpeed: 0,
-        zero: "zoomstop",
-        isMoving: false,
-    },
-    "BUMPER_RIGHT": {
-        url: cameraRight,
-        buttonDown: "zoomout",
-        buttonUp: "zoomstop",
-        buttonSpeed: 4,
-    },
-    "B": {
-        url: [
-            cameraLeft,
-            cameraRight,
-        ],
-        buttonDown: "ptzstop",
-    }
-};
+const { username, password, deviceMapper } = require('./cameras');
+
+const args = process.argv.slice(2);
 
 const init = async () => {
     const gameController = new GameController();
+    
+    // (maybe) run in config mode
+    const configMode = args[0] ?? "";
+    if( '--config' === configMode ){
+        gameController.loadDefaultController();
+        await gameController.init();
+        gameController.on( 'buttonDown', ( inputName ) => {
+            console.log( "Button: ", inputName );
+        } );
+        gameController.on( 'thumbsticks', ( e ) => {
+            let axes_map = {};
+            Object.keys(e).forEach((inputName) => {
+                const rate = e[inputName] ?? 0;
+                axes_map[inputName] = rate;
+            });
+            console.log( "AXIS: ", axes_map );
+        } );
+        gameController.on( 'log', (msg) => console.warn(msg) );
+        return;
+    }
+    
+    // Run in regular operation mode
+    gameController.loadController();
     await gameController.init();
+    
     gameController.on( 'buttonDown', ( e ) => {
         try{
             gotButtonDown( e );
@@ -226,6 +155,9 @@ const sendPTZCommand = ( deviceUrl, action, panSpeed, tiltSpeed ) => {
         urls.push(deviceUrl);
     } else {
         urls = deviceUrl;
+    }
+    if( "" === action ){
+        return;
     }
     urls.forEach( indDeviceUrl => {
         let url = indDeviceUrl + "?ptzcmd&" + action;

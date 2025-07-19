@@ -1,30 +1,35 @@
 const puppeteer = require('puppeteer');
 const EventEmitter = require('events').EventEmitter;
 
-const buttons = require('./controllers/xbox.json');
+let buttons, axes, deadzone, noise, exponent;
 
 class GameController {
     constructor() {
         this.eventEmitter = new EventEmitter();
         this.POLL_INTERVAL_MS = 10;
         this.DEBOUNCE_MS = 150;
-        this.DEADZONE = 0.08;
-        this.NOISE_THRESHOLD = 0.05;
-        this.EXPONENT = 1.5;
-        this.INPUT_MAP = [
-            "STICK_L_HORIZ",
-            "STICK_L_VERT",
-            "TRIGGER_L",
-            "STICK_R_HORIZ",
-            "STICK_R_VERT",
-            "TRIGGER_R",
-            // "DPAD_HORIZ",
-            // "DPAD_VERT",
-        ];
     }
 
     on(event, cb) {
         this.eventEmitter.on(event, cb);
+    }
+    
+    loadController() {
+        const controller = require('../controller');
+        buttons = controller.buttons;
+        axes = controller.axes;
+        deadzone = controller.deadzone;
+        noise = controller.noise;
+        exponent = controller.exponent;
+    }
+    
+    loadDefaultController() {
+        const controller = require('./controller-setup');
+        buttons = controller.buttons;
+        axes = controller.axes;
+        deadzone = controller.deadzone;
+        noise = controller.noise;
+        exponent = controller.exponent;
     }
 
     async init() {
@@ -42,7 +47,7 @@ class GameController {
 
         // listen for events of type 'status' and
         // pass 'type' and 'detail' attributes to our exposed function
-        await page.evaluate(([ buttons, POLL_INTERVAL_MS, DEBOUNCE_MS, DEADZONE, NOISE_THRESHOLD, EXPONENT, INPUT_MAP ]) => {
+        await page.evaluate(([ BUTTON_MAP, AXES_MAP, DEADZONE, NOISE_THRESHOLD, EXPONENT, POLL_INTERVAL_MS, DEBOUNCE_MS ]) => {
             let interval = {};
             let triggerBugWorkaround = {"TRIGGER_L": 1,"TRIGGER_R": 1};
             
@@ -82,7 +87,7 @@ class GameController {
                     gp = navigator.getGamepads()[e.gamepad.index];
                     // Map Axes to their Key
                     const axes = {};
-                    INPUT_MAP.forEach((key, index) => {
+                    AXES_MAP.forEach((key, index) => {
                         const inputValue = gp.axes[index] ?? 0;
                         // Apply exponential weighting to inputs
                         const isNegative = (inputValue < 0);
@@ -94,15 +99,17 @@ class GameController {
                     });
 
                     // Triggers should be 0 -> 1 range.
-                    axes["TRIGGER_L"] = mapRange(axes["TRIGGER_L"]);
-                    axes["TRIGGER_R"] = mapRange(axes["TRIGGER_R"]);
-                    
-                    // Fix bug where triggers init at 0.50 (rather than 0)
-                    axes["TRIGGER_L"] = triggerBugFix(axes["TRIGGER_L"], "TRIGGER_L");
-                    axes["TRIGGER_R"] = triggerBugFix(axes["TRIGGER_R"], "TRIGGER_R");
+                    if( typeof axes["TRIGGER_L"] !== "undefined" ){
+                        axes["TRIGGER_L"] = mapRange(axes["TRIGGER_L"]);
+                        axes["TRIGGER_R"] = mapRange(axes["TRIGGER_R"]);
+                        
+                        // Fix bug where triggers init at 0.50 (rather than 0)
+                        axes["TRIGGER_L"] = triggerBugFix(axes["TRIGGER_L"], "TRIGGER_L");
+                        axes["TRIGGER_R"] = triggerBugFix(axes["TRIGGER_R"], "TRIGGER_R");
+                    }
                     
                     let toTrigger = false;
-                    INPUT_MAP.forEach( key => {
+                    AXES_MAP.forEach( key => {
                         // Round to 2 decimals
                         axes[key] = axes[key].toFixed(2);
                         
@@ -129,13 +136,13 @@ class GameController {
                     }
 
                     for (let i = 0; i < gp.buttons.length; i++) {
-                        const alreadyPressed = buttonsPressed[e.gamepad.index][buttons[i]] ?? false;
+                        const alreadyPressed = buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] ?? false;
                         if (gp.buttons[i].pressed == true && !alreadyPressed) {
-                            buttonsPressed[e.gamepad.index][buttons[i]] = true;
-                            window.sendEventToProcessHandle('buttonDown', buttons[i]);
+                            buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] = true;
+                            window.sendEventToProcessHandle('buttonDown', BUTTON_MAP[i]);
                         } else if ( gp.buttons[i].pressed == false && alreadyPressed ){
-                            buttonsPressed[e.gamepad.index][buttons[i]] = false;
-                            window.sendEventToProcessHandle('buttonUp', buttons[i]);
+                            buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] = false;
+                            window.sendEventToProcessHandle('buttonUp', BUTTON_MAP[i]);
                         }
                     }
                 }, POLL_INTERVAL_MS);
@@ -146,7 +153,7 @@ class GameController {
                 window.consoleLog("Gamepad disconnected at index " + gp.index);
                 clearInterval(interval[e.gamepad.index]);
             });
-        }, [ buttons, this.POLL_INTERVAL_MS, this.DEBOUNCE_MS, this.DEADZONE, this.NOISE_THRESHOLD, this.EXPONENT, this.INPUT_MAP ]);
+        }, [ buttons, axes, deadzone, noise, exponent, this.POLL_INTERVAL_MS, this.DEBOUNCE_MS ]);
     }
 }
 

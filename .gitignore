@@ -37,3 +37,7 @@ jspm_packages/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# controller / camera config files
+controller.js
+cameras.js
