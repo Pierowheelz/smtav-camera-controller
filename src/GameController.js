@@ -65,7 +65,7 @@ class GameController {
                 return scaledValue;
             };
             
-            // Fix triggers initialising at 50%, rather than 0 (most axes rest at 0%, but triggers rest at 0%)
+            // Fix triggers initialising at 50%, rather than 0 (most axes rest at 50%, but triggers rest at 0%)
             const triggerBugFix = (value) => {
                 if( 0.5 === value ){ // It's almost impossible to actually hit 0.5 exactly, so this is fine
                     value = 0;
@@ -133,10 +133,7 @@ class GameController {
                     // Maybe sent an Axis event (axis)
                     if ( toTrigger ) {
                         lastEvents[e.gamepad.index] = axes;
-                        clearTimeout( inputDebounce );
-                        inputDebounce = setTimeout( () => {
-                            window.sendEventToProcessHandle('axis', axes);
-                        }, DEBOUNCE_MS );
+                        window.sendEventToProcessHandle('axis', axes);
                     }
                     
                     // Maybe sent button Events (buttonUp / buttonDown)
