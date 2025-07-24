@@ -75,7 +75,6 @@ class GameController {
             };
 
             let lastEvents = [];
-            let inputDebounce = null;
             let buttonDebounce = null;
             let buttonsPressed = [];
             window.addEventListener("gamepadconnected", (e) => {
