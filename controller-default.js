@@ -26,13 +26,19 @@ const axes = [
     "DPAD_VERT",
 ];
 
+// Tell the system which inputs are triggers. Triggers rest at 0%, rather than 50%
+const triggers = [
+    "TRIGGER_L",
+    "TRIGGER_R",
+];
+
 // Deadzone of the controller as a percentage of the total axis travel (0 = 0%, 0.5 = 50%, 1 = 100%)
 const deadzone = 0.04;
 
 // Used to filter out small movements. An axis movement less than this value will not send a second command
 const noise = 0.05;
 
-// Export const exponent. A multiplier used to ramp (min:1, max: 99)
+// Export const exponent. A multiplier used to ramp axes inputs logarithmically (min:1, max: 99)
 const exponent = 1.5; //1 = 1:1 movement
 
-module.exports = { buttons, axes, deadzone, noise, exponent };
+module.exports = { buttons, axes, triggers, deadzone, noise, exponent };

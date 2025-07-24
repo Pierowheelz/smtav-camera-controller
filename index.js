@@ -3,6 +3,8 @@ const GameController = require('./src/GameController');
 
 const { username, password, deviceMapper } = require('./cameras');
 
+const SHARED_DEADZONE = 0.1; // Deadzone for moving diagonally (0 = 0%, 0.5 = 50%, 1 = 100%)
+
 const args = process.argv.slice(2);
 
 const init = async () => {
@@ -16,7 +18,7 @@ const init = async () => {
         gameController.on( 'buttonDown', ( inputName ) => {
             console.log( "Button: ", inputName );
         } );
-        gameController.on( 'thumbsticks', ( e ) => {
+        gameController.on( 'axis', ( e ) => {
             let axes_map = {};
             Object.keys(e).forEach((inputName) => {
                 const rate = e[inputName] ?? 0;
@@ -46,7 +48,7 @@ const init = async () => {
             console.error( "Error controller Event Handler", e );
         }
     } );
-    gameController.on( 'thumbsticks', ( e ) => {
+    gameController.on( 'axis', ( e ) => {
         try{
             gotControllerEvent( e );
         } catch( e ){
@@ -103,7 +105,7 @@ const gotControllerEvent = ( event ) => {
                 // See if shared device (other axis) also wants to move
                 if( sDevice ){
                     const sharedRate = event[sDevice] ?? 0;
-                    if( sharedRate !== 0 ){
+                    if( Math.abs(sharedRate) > SHARED_DEADZONE ){
                         action = (sharedRate > 0) ? sharedAction.positive : sharedAction.negative;
                         const sharedDevice = deviceMapper[sDevice] ?? null;
                         if( null !== sharedDevice ){

@@ -18,6 +18,7 @@ class GameController {
         const controller = require('../controller');
         buttons = controller.buttons;
         axes = controller.axes;
+        triggers = controller.triggers;
         deadzone = controller.deadzone;
         noise = controller.noise;
         exponent = controller.exponent;
@@ -27,6 +28,7 @@ class GameController {
         const controller = require('./controller-setup');
         buttons = controller.buttons;
         axes = controller.axes;
+        triggers = controller.triggers;
         deadzone = controller.deadzone;
         noise = controller.noise;
         exponent = controller.exponent;
@@ -47,9 +49,8 @@ class GameController {
 
         // listen for events of type 'status' and
         // pass 'type' and 'detail' attributes to our exposed function
-        await page.evaluate(([ BUTTON_MAP, AXES_MAP, DEADZONE, NOISE_THRESHOLD, EXPONENT, POLL_INTERVAL_MS, DEBOUNCE_MS ]) => {
+        await page.evaluate(([ BUTTON_MAP, AXES_MAP, TRIGGERS, DEADZONE, NOISE_THRESHOLD, EXPONENT, POLL_INTERVAL_MS, DEBOUNCE_MS ]) => {
             let interval = {};
-            let triggerBugWorkaround = {"TRIGGER_L": 1,"TRIGGER_R": 1};
             
             const mapRange = (value) => {
                 // Ensure the value is within the original range (-1 to 1)
@@ -64,11 +65,10 @@ class GameController {
                 return scaledValue;
             };
             
-            const triggerBugFix = (value, inputName) => {
-                if( 0.5 === value && triggerBugWorkaround[inputName] ){
+            // Fix triggers initialising at 50%, rather than 0 (most axes rest at 0%, but triggers rest at 0%)
+            const triggerBugFix = (value) => {
+                if( 0.5 === value ){ // It's almost impossible to actually hit 0.5 exactly, so this is fine
                     value = 0;
-                } else {
-                    triggerBugWorkaround[inputName] = 0;
                 }
                 
                 return value;
@@ -76,10 +76,11 @@ class GameController {
 
             let lastEvents = [];
             let inputDebounce = null;
+            let buttonDebounce = null;
             let buttonsPressed = [];
             window.addEventListener("gamepadconnected", (e) => {
                 let gp = navigator.getGamepads()[e.gamepad.index];
-                window.sendEventToProcessHandle('GAMEPAD_CONNECTED');
+                window.sendEventToProcessHandle('connected');
                 lastEvents[e.gamepad.index] = null;
                 buttonsPressed[e.gamepad.index] = [];
 
@@ -99,15 +100,13 @@ class GameController {
                     });
 
                     // Triggers should be 0 -> 1 range.
-                    if( typeof axes["TRIGGER_L"] !== "undefined" ){
-                        axes["TRIGGER_L"] = mapRange(axes["TRIGGER_L"]);
-                        axes["TRIGGER_R"] = mapRange(axes["TRIGGER_R"]);
-                        
+                    TRIGGERS.forEach( key => {
+                        axes[key] = mapRange(axes[key]);
                         // Fix bug where triggers init at 0.50 (rather than 0)
-                        axes["TRIGGER_L"] = triggerBugFix(axes["TRIGGER_L"], "TRIGGER_L");
-                        axes["TRIGGER_R"] = triggerBugFix(axes["TRIGGER_R"], "TRIGGER_R");
-                    }
+                        axes[key] = triggerBugFix(axes[key]);
+                    });
                     
+                    // Only send an Event if the input state has changed
                     let toTrigger = false;
                     AXES_MAP.forEach( key => {
                         // Round to 2 decimals
@@ -120,40 +119,54 @@ class GameController {
                         
                         // Determine if moved enough since last Event to trigger a new Event
                         if( null === lastEvents[e.gamepad.index] ){
+                            // Always trigger the first event from an input
                             toTrigger = true;
                         } else if ( Math.abs(lastEvents[e.gamepad.index][key] - axes[key]) > NOISE_THRESHOLD ) {
+                            // Only trigger a movement event if above the noise threshold
+                            toTrigger = true;
+                        } else if ( Math.abs(lastEvents[e.gamepad.index][key] !== 0 && axes[key]) === 0 ) {
+                            // Always trigger a zero event if the last event was not zero
                             toTrigger = true;
                         }
                     });
 
+                    // Maybe sent an Axis event (axis)
                     if ( toTrigger ) {
-                        //window.consoleLog("inputval " + gp.axes);
                         lastEvents[e.gamepad.index] = axes;
                         clearTimeout( inputDebounce );
                         inputDebounce = setTimeout( () => {
-                            window.sendEventToProcessHandle('thumbsticks', axes);
+                            window.sendEventToProcessHandle('axis', axes);
                         }, DEBOUNCE_MS );
                     }
-
+                    
+                    // Maybe sent button Events (buttonUp / buttonDown)
                     for (let i = 0; i < gp.buttons.length; i++) {
-                        const alreadyPressed = buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] ?? false;
+                        const alreadyPressed = buttonsPressed[e.gamepad.index][buttons[i]] ?? false;
                         if (gp.buttons[i].pressed == true && !alreadyPressed) {
-                            buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] = true;
-                            window.sendEventToProcessHandle('buttonDown', BUTTON_MAP[i]);
+                            clearTimeout( buttonDebounce );
+                            buttonsPressed[e.gamepad.index][buttons[i]] = true;
+                            window.sendEventToProcessHandle('buttonDown', buttons[i]);
                         } else if ( gp.buttons[i].pressed == false && alreadyPressed ){
-                            buttonsPressed[e.gamepad.index][BUTTON_MAP[i]] = false;
-                            window.sendEventToProcessHandle('buttonUp', BUTTON_MAP[i]);
+                            buttonDebounce = setTimeout(()=>{
+                                const stillUnPressed = (gp.buttons[i].pressed == false); // if button is still not pressed
+                                const lastEventDown = buttonsPressed[e.gamepad.index][buttons[i]] ?? false; // if last sent event was 'buttonDown'
+                                if( stillUnPressed && lastEventDown ){ // Prevents multiple triggers due to debounce timeout
+                                    buttonsPressed[e.gamepad.index][buttons[i]] = false;
+                                    window.sendEventToProcessHandle('buttonUp', buttons[i]);
+                                }
+                            }, DEBOUNCE_MS );
                         }
                     }
+                    
                 }, POLL_INTERVAL_MS);
             });
 
             window.addEventListener("gamepaddisconnected", (e) => {
-                window.sendEventToProcessHandle('GAMEPAD_DISCONNECTED');
+                window.sendEventToProcessHandle('disconnected');
                 window.consoleLog("Gamepad disconnected at index " + gp.index);
                 clearInterval(interval[e.gamepad.index]);
             });
-        }, [ buttons, axes, deadzone, noise, exponent, this.POLL_INTERVAL_MS, this.DEBOUNCE_MS ]);
+        }, [ buttons, axes, triggers, deadzone, noise, exponent, this.POLL_INTERVAL_MS, this.DEBOUNCE_MS ]);
     }
 }
 
